@@ -1,15 +1,10 @@
 #include <cstdint>
 #include <string>
 #include "openrac/mod.hpp"
+#include "openrac/games/rac1.hpp"
 #include "logic.hpp"
 
 namespace {
-struct SaveNewGamePlus {
-    static constexpr const char* id="rac1.save.new_game_plus";
-    static constexpr const char* name="Save_NewGamePlus";
-    static constexpr const char* signature="void(i32)";
-    using fn=void(*)(std::int32_t);
-};
 openrac::Mod* g=nullptr;
 bool pending=false, skip_scene=false;
 int skip_window=0;
@@ -20,12 +15,17 @@ void load(openrac::Mod& mod){
     g=&mod;
     bonus=qol::clamp_bonus(mod.setting<std::int64_t>("bonus_bolts"));
     skip_scene=mod.setting<bool>("skip_first_scene");
-    mod.hook<SaveNewGamePlus>([](auto original,std::int32_t slot){ original(slot); pending=true; });
+    mod.hook<openrac::rac1::Save_NewGamePlus>([](auto original,std::int32_t slot){ original(slot); pending=true; });
     mod.on_frame([]{
         const auto s=g->play_status();
-        if(pending && s.phase==OPENRAC_PLAY_PLAYING){
+        const bool in_level =
+            s.level>=0 && (s.phase==OPENRAC_PLAY_PLAYING || s.phase==OPENRAC_PLAY_SCENE
+                           || s.phase==OPENRAC_PLAY_MENU);
+        if(pending && in_level){
             if(bonus>0) g->bolts(bonus);
-            if(g->has_notice()) g->play_notice(bonus>0 ? "New Game+ ready - bonus bolts added" : "New Game+ ready");
+            if(g->has_notice()) g->play_notice(
+                bonus>0 ? "New Game+ ready - bonus bolts added" : "New Game+ ready"
+            );
             pending=false;
             if(skip_scene) skip_window=600;
         }
