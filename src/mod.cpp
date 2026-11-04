@@ -12,6 +12,7 @@ struct SaveNewGamePlus {
 };
 openrac::Mod* g=nullptr;
 bool pending=false, skip_scene=false;
+int skip_window=0;
 int bonus=0;
 }
 void load(openrac::Mod& mod){
@@ -21,15 +22,21 @@ void load(openrac::Mod& mod){
     skip_scene=mod.setting<bool>("skip_first_scene");
     mod.hook<SaveNewGamePlus>([](auto original,std::int32_t slot){ original(slot); pending=true; });
     mod.on_frame([]{
-        if(!pending) return;
         const auto s=g->play_status();
-        if(s.phase!=OPENRAC_PLAY_PLAYING) return;
-        if(bonus>0) g->bolts(bonus);
-        if(g->has_notice()) g->play_notice(bonus>0 ? "New Game+ ready - bonus bolts added" : "New Game+ ready");
-        pending=false;
-        if(skip_scene && g->has_scenes()){
-            int frame=0;
-            if(g->scene_playing(&frame)>=0) g->play_skip();
+        if(pending && s.phase==OPENRAC_PLAY_PLAYING){
+            if(bonus>0) g->bolts(bonus);
+            if(g->has_notice()) g->play_notice(bonus>0 ? "New Game+ ready - bonus bolts added" : "New Game+ ready");
+            pending=false;
+            if(skip_scene) skip_window=600;
+        }
+        if(skip_window>0){
+            --skip_window;
+            if(g->has_scenes()){
+                int frame=0;
+                if(g->scene_playing(&frame)>=0){
+                    if(g->play_skip()) skip_window=0;
+                }
+            }
         }
     });
     mod.info("NG+ start improvements");
